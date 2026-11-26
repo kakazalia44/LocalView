@@ -1,0 +1,54 @@
+name: Build LocalView
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build debug APK
+        run: gradle --no-daemon assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LocalView-Android-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+  windows:
+    name: Windows EXE
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: python -m pip install -r windows-agent/requirements.txt
+      - name: Build EXE
+        working-directory: windows-agent
+        run: pyinstaller --noconfirm --clean --onefile --console --name LocalView agent.py
+      - name: Include launcher
+        shell: pwsh
+        run: Copy-Item windows-agent/start_agent.bat windows-agent/dist/start_agent.bat
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LocalView-Windows-EXE
+          path: |
+            windows-agent/dist/LocalView.exe
+            windows-agent/dist/start_agent.bat
+          if-no-files-found: error
