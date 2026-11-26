@@ -3,14 +3,17 @@ import io
 import json
 import secrets
 import socket
+import threading
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import mss
 from PIL import Image
 
+DISCOVERY_PORT = 8766
+
 class Handler(BaseHTTPRequestHandler):
-    server_version = "LocalView/1.0"
+    server_version = "LocalView/0.1.02"
 
     def do_GET(self):
         if self.path == "/health":
@@ -25,7 +28,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             with mss.mss() as capture:
-                shot = capture.grab(capture.monitors[0])  # весь рабочий стол, включая все мониторы
+                shot = capture.grab(capture.monitors[0])
                 image = Image.frombytes("RGB", shot.size, shot.rgb)
                 image.thumbnail((3840, 2160))
                 buffer = io.BytesIO()
@@ -46,6 +49,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(payload)
 
@@ -62,15 +66,34 @@ def local_ip():
     finally:
         s.close()
 
+def discovery_listener(port, http_port, name):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(("", port))
+    response = json.dumps({"type": "localview-agent", "name": name, "port": http_port}).encode("utf-8")
+    print("Автопоиск в локальной сети включён (UDP %s)." % port)
+    while True:
+        data, address = sock.recvfrom(2048)
+        try:
+            request = json.loads(data.decode("utf-8"))
+            if request.get("type") == "localview-discover":
+                sock.sendto(response, address)
+        except (ValueError, UnicodeDecodeError):
+            continue
+
 def main():
     parser = argparse.ArgumentParser(description="LocalView — ручной агент снимков экрана")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--token", default=None)
     args = parser.parse_args()
     token = args.token or secrets.token_urlsafe(24)
+    name = socket.gethostname()
     server = ThreadingHTTPServer(("0.0.0.0", args.port), Handler)
     server.token = token
-    print("\nLocalView запущен. Для остановки закройте это окно или нажмите Ctrl+C.")
+    listener = threading.Thread(target=discovery_listener, args=(DISCOVERY_PORT, args.port, name), daemon=True)
+    listener.start()
+    print("\nLocalView 0.1.02 запущен. Для остановки закройте это окно или нажмите Ctrl+C.")
+    print("Имя ПК: %s" % name)
     print("Адрес этого ПК: %s:%s" % (local_ip(), args.port))
     print("Токен доступа (введите его в Android-приложении):")
     print(token)
