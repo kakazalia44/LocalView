@@ -8,6 +8,9 @@ on:
 permissions:
   contents: read
 
+env:
+  APP_VERSION: 0.1.02
+
 jobs:
   android:
     name: Android APK
@@ -21,12 +24,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Build debug APK
-        run: gradle --no-daemon assembleDebug
+      - name: Build APK
+        run: |
+          gradle --no-daemon assembleDebug
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/LocalView-${APP_VERSION}.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: LocalView-Android-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: LocalView-Android-${{ env.APP_VERSION }}
+          path: dist/LocalView-${{ env.APP_VERSION }}.apk
           if-no-files-found: error
 
   windows:
@@ -41,14 +47,14 @@ jobs:
         run: python -m pip install -r windows-agent/requirements.txt
       - name: Build EXE
         working-directory: windows-agent
-        run: pyinstaller --noconfirm --clean --onefile --console --name LocalView agent.py
+        run: pyinstaller --noconfirm --clean --onefile --console --name LocalView-0.1.02 agent.py
       - name: Include launcher
         shell: pwsh
         run: Copy-Item windows-agent/start_agent.bat windows-agent/dist/start_agent.bat
       - uses: actions/upload-artifact@v4
         with:
-          name: LocalView-Windows-EXE
+          name: LocalView-Windows-0.1.02
           path: |
-            windows-agent/dist/LocalView.exe
+            windows-agent/dist/LocalView-0.1.02.exe
             windows-agent/dist/start_agent.bat
           if-no-files-found: error
