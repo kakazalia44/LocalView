@@ -77,7 +77,7 @@ public class MainActivity extends Activity {
                 socket = new DatagramSocket();
                 socket.setBroadcast(true);
                 socket.setSoTimeout(350);
-                byte[] request = "{\\"type\\":\\"localview-discover\\"}".getBytes("UTF-8");
+                byte[] request = "{\"type\":\"localview-discover\"}".getBytes("UTF-8");
                 DatagramPacket packet = new DatagramPacket(request, request.length,
                     InetAddress.getByName("255.255.255.255"), DISCOVERY_PORT);
                 socket.send(packet);
